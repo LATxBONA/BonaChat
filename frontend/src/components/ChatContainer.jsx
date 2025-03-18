@@ -15,17 +15,26 @@ const ChatContainer = () => {
     selectedUser,
     subscribeToMessages,
     unsubscribeFromMessages,
+    markMessagesAsRead, // CHANGED: Thêm markMessagesAsRead để đánh dấu tin nhắn đã đọc
   } = useChatStore();
   const { authUser } = useAuthStore();
   const messageEndRef = useRef(null);
 
   useEffect(() => {
-    getMessages(selectedUser._id);
+    if (selectedUser) {
+      getMessages(selectedUser._id);
+      markMessagesAsRead(selectedUser._id); // CHANGED: Đánh dấu tin nhắn đã đọc khi mở chat
+    }
 
     subscribeToMessages();
-
     return () => unsubscribeFromMessages();
-  }, [selectedUser._id, getMessages, subscribeToMessages, unsubscribeFromMessages]);
+  }, [
+    selectedUser,
+    getMessages,
+    markMessagesAsRead, // CHANGED: Đảm bảo hook chạy lại khi user thay đổi
+    subscribeToMessages,
+    unsubscribeFromMessages,
+  ]);
 
   useEffect(() => {
     if (messageEndRef.current && messages) {
@@ -51,7 +60,9 @@ const ChatContainer = () => {
         {messages.map((message) => (
           <div
             key={message._id}
-            className={`chat ${message.senderId === authUser._id ? "chat-end" : "chat-start"}`}
+            className={`chat ${
+              message.senderId === authUser._id ? "chat-end" : "chat-start"
+            }`}
             ref={messageEndRef}
           >
             <div className=" chat-image avatar">
@@ -79,7 +90,13 @@ const ChatContainer = () => {
                   className="sm:max-w-[200px] rounded-md mb-2"
                 />
               )}
-              {message.text && <p>{message.text}</p>}
+              {message.text && (
+                <p
+                  dangerouslySetInnerHTML={{
+                    __html: message.text.replace(/\n/g, "<br>"),
+                  }}
+                />
+              )}
             </div>
           </div>
         ))}

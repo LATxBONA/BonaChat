@@ -71,13 +71,20 @@ const MessageInput = () => {
 
       <form onSubmit={handleSendMessage} className="flex items-center gap-2">
         <div className="flex-1 flex gap-2">
-          <input
-            type="text"
-            className="w-full input input-bordered rounded-lg input-sm sm:input-md"
+          {/* Dùng textare để có thể xuống dòng thay vì dùng input  */}
+          <textarea
+            className="w-full textarea textarea-bordered rounded-lg input-sm sm:input-md resize-none"
             placeholder="Type a message..."
             value={text}
             onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSendMessage(e);
+              }
+            }}
           />
+
           <input
             type="file"
             accept="image/*"

@@ -7,7 +7,9 @@ import { getReceiverSocketId, io } from "../lib/socket.js";
 export const getUsersForSidebar = async (req, res) => {
   try {
     const loggedInUserId = req.user._id;
-    const filteredUsers = await User.find({ _id: { $ne: loggedInUserId } }).select("-password");
+    const filteredUsers = await User.find({
+      _id: { $ne: loggedInUserId },
+    }).select("-password");
 
     res.status(200).json(filteredUsers);
   } catch (error) {
@@ -53,6 +55,7 @@ export const sendMessage = async (req, res) => {
       receiverId,
       text,
       image: imageUrl,
+      isRead: false, // Mặc định là chưa đọc
     });
 
     await newMessage.save();
@@ -60,11 +63,55 @@ export const sendMessage = async (req, res) => {
     const receiverSocketId = getReceiverSocketId(receiverId);
     if (receiverSocketId) {
       io.to(receiverSocketId).emit("newMessage", newMessage);
+    } else {
+      // Nếu người nhận offline, tin nhắn sẽ có isRead: false
+      console.log("User is offline, storing unread message.");
     }
 
     res.status(201).json(newMessage);
   } catch (error) {
     console.log("Error in sendMessage controller: ", error.message);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+// isRead
+export const markMessagesAsRead = async (req, res) => {
+  try {
+    const { senderId } = req.body; // ID của người gửi tin nhắn
+    const receiverId = req.user._id; // Người nhận tin nhắn (đang đọc)
+
+    await Message.updateMany(
+      { senderId, receiverId, isRead: false },
+      { $set: { isRead: true } }
+    );
+
+    res.status(200).json({ message: "Messages marked as read" });
+
+    // Gửi sự kiện WebSocket để báo cho người gửi rằng tin nhắn đã được đọc
+    const senderSocketId = getReceiverSocketId(senderId);
+    if (senderSocketId) {
+      io.to(senderSocketId).emit("messagesRead", { senderId, receiverId });
+    }
+  } catch (error) {
+    console.error("Error in markMessagesAsRead:", error.message);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+// Lấy số tin nhắn chưa đọc
+export const getUnreadMessagesCount = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    const unreadCounts = await Message.aggregate([
+      { $match: { receiverId: userId, isRead: false } },
+      { $group: { _id: "$senderId", count: { $sum: 1 } } },
+    ]);
+
+    res.status(200).json(unreadCounts);
+  } catch (error) {
+    console.error("Error in getUnreadMessagesCount:", error.message);
     res.status(500).json({ error: "Internal server error" });
   }
 };

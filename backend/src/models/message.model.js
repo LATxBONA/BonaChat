@@ -18,6 +18,11 @@ const messageSchema = new mongoose.Schema(
     image: {
       type: String,
     },
+    // Thêm isRead
+    isRead: {
+      type: Boolean,
+      default: false, // Mặc định tin nhắn chưa đọc
+    },
   },
   { timestamps: true }
 );
