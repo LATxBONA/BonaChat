@@ -115,3 +115,47 @@ export const getUnreadMessagesCount = async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 };
+
+// Xóa tin nhắn
+export const deleteMessage = async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const userId = req.user._id;
+
+    // Lấy tin nhắn từ database
+    const message = await Message.findById(messageId);
+
+    if (!message) {
+      return res.status(404).json({ message: "Message not found" });
+    }
+
+    // Kiểm tra nếu tin nhắn quá 1 tiếng
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    if (new Date(message.createdAt) < oneHourAgo) {
+      return res
+        .status(403)
+        .json({ message: "Cannot delete messages older than 1 hour" });
+    }
+
+    // Kiểm tra xem user có phải là người gửi không
+    if (message.senderId.toString() !== userId.toString()) {
+      return res
+        .status(403)
+        .json({ message: "You can only delete your own messages" });
+    }
+
+    // Xóa tin nhắn
+    await Message.findByIdAndDelete(messageId);
+
+    // Gửi sự kiện xóa tin nhắn qua WebSocket
+    const receiverSocketId = getReceiverSocketId(message.receiverId);
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit("messageDeleted", { messageId });
+    }
+
+    res.status(200).json({ message: "Message deleted successfully" });
+  } catch (error) {
+    console.error("Error in deleteMessage:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
