@@ -1,5 +1,6 @@
 import { useChatStore } from "../store/useChatStore";
 import { useEffect, useRef, useState } from "react";
+import { toast } from "react-hot-toast";
 
 import ChatHeader from "./ChatHeader";
 import MessageInput from "./MessageInput";
@@ -16,18 +17,25 @@ const ChatContainer = () => {
     subscribeToMessages,
     unsubscribeFromMessages,
     markMessagesAsRead,
+    deleteMessage,
   } = useChatStore();
   const { authUser } = useAuthStore();
   const messageEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
 
-  // State for managing hovered message and delete button
+  // State quản lý tin nhắn được hover và nút xóa
   const [hoveredMessageId, setHoveredMessageId] = useState(null);
   const [showDelete, setShowDelete] = useState(null);
-  // image
+
+  // Quản lý ảnh khi click vào tin nhắn có ảnh
   const [selectedImage, setSelectedImage] = useState(null);
   const [showImageModal, setShowImageModal] = useState(false);
 
+  // State modal xác nhận xóa tin nhắn
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [messageToDelete, setMessageToDelete] = useState(null);
+
+  // Lấy thông báo tin nhắn chưa đọc nè
   useEffect(() => {
     if (selectedUser) {
       getMessages(selectedUser._id);
@@ -50,7 +58,7 @@ const ChatContainer = () => {
     }
   }, [messages]);
 
-  // Handle clicks outside the delete button
+  // Xử lý click bên ngoài để đóng nút xóa
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (showDelete && !event.target.closest(".message-options")) {
@@ -73,6 +81,26 @@ const ChatContainer = () => {
       </div>
     );
   }
+
+  const handleDeleteMessage = () => {
+    const message = messages.find((m) => m._id === messageToDelete);
+    if (!message) return;
+
+    const oneHourAgo = new Date(Date.now() - 3600000);
+    const messageTime = new Date(message.createdAt);
+
+    if (messageTime < oneHourAgo) {
+      toast.error(
+        "Bạn chỉ có thể xóa tin nhắn trong vòng 1 tiếng sau khi gửi."
+      );
+      setShowConfirmModal(false);
+      return;
+    }
+
+    deleteMessage(messageToDelete);
+    setShowConfirmModal(false);
+    setShowDelete(null);
+  };
 
   return (
     <div className="flex-1 flex flex-col overflow-auto">
@@ -114,7 +142,7 @@ const ChatContainer = () => {
                 </time>
               </div>
 
-              {/* Message content */}
+              {/* Nội dung tin nhắn */}
               <div className="chat-bubble flex flex-col relative">
                 {message.image && (
                   <img
@@ -135,11 +163,11 @@ const ChatContainer = () => {
                   />
                 )}
 
-                {/* Options button positioned relative to the message bubble */}
+                {/* Nút mở tùy chọn */}
                 {isCurrentUser && hoveredMessageId === message._id && (
                   <button
                     style={{ fontSize: "25px" }}
-                    className="absolute -left-8 top-1 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity text-gray-500 hover:text-gray-700 message-options h-5 "
+                    className="absolute -left-8 top-1 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity text-gray-500 hover:text-gray-700 message-options h-5"
                     onClick={(e) => {
                       e.stopPropagation();
                       setShowDelete(
@@ -151,7 +179,7 @@ const ChatContainer = () => {
                   </button>
                 )}
 
-                {/* Delete button */}
+                {/* Nút xóa tin nhắn */}
                 {isCurrentUser && showDelete === message._id && (
                   <div
                     className="absolute -left-28 top-1/2 -translate-y-1/2 z-10 message-options"
@@ -160,8 +188,8 @@ const ChatContainer = () => {
                     <button
                       className="bg-white shadow-lg text-red-500 text-xs p-2 rounded hover:bg-gray-100"
                       onClick={() => {
-                        useChatStore.getState().deleteMessage(message._id);
-                        setShowDelete(null);
+                        setMessageToDelete(message._id);
+                        setShowConfirmModal(true);
                       }}
                     >
                       Xóa tin nhắn
@@ -175,6 +203,8 @@ const ChatContainer = () => {
       </div>
 
       <MessageInput />
+
+      {/* Modal hiển thị ảnh */}
       {showImageModal && (
         <div
           className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4"
@@ -195,6 +225,61 @@ const ChatContainer = () => {
               alt="Expanded Attachment"
               className="w-full rounded-lg object-contain max-h-[80vh]"
             />
+          </div>
+        </div>
+      )}
+
+      {/* Modal xác nhận xóa tin nhắn */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-md flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-lg p-6 w-96 transform scale-95 animate-scaleIn">
+            {/* Icon cảnh báo */}
+            <div className="flex justify-center">
+              <svg
+                className="w-16 h-16 text-red-500"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 9v2m0 4h.01M4.93 4.93a10 10 0 1114.14 14.14A10 10 0 014.93 4.93z"
+                ></path>
+              </svg>
+            </div>
+
+            {/* Nội dung cảnh báo */}
+            <h2 className="text-lg font-semibold text-gray-800 text-center mt-4">
+              Xóa tin nhắn?
+            </h2>
+            <p className="text-sm text-gray-500 text-center mt-2">
+              Hành động này không thể hoàn tác. Bạn có chắc chắn muốn xóa tin
+              nhắn này không?
+            </p>
+
+            {/* Nút bấm */}
+            <div className="mt-6 flex justify-center gap-4">
+              <button
+                className="bg-red-500 text-white px-5 py-2 rounded-lg font-medium hover:bg-red-600 transition-all"
+                onClick={() => {
+                  useChatStore.getState().deleteMessage(messageToDelete);
+                  setShowConfirmModal(false);
+                  setShowDelete(null);
+                  handleDeleteMessage();
+                }}
+              >
+                Xóa ngay
+              </button>
+              <button
+                className="bg-gray-300 text-gray-700 px-5 py-2 rounded-lg font-medium hover:bg-gray-400 transition-all"
+                onClick={() => setShowConfirmModal(false)}
+              >
+                Hủy
+              </button>
+            </div>
           </div>
         </div>
       )}

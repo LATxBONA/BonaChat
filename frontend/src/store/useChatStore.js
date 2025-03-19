@@ -59,33 +59,38 @@ export const useChatStore = create((set, get) => ({
   },
 
   subscribeToMessages: () => {
-    const { selectedUser } = get();
     const socket = useAuthStore.getState().socket;
     if (!socket) return;
-
+  
     const playNotificationSound = () => {
       const audio = new Audio("/sounds/Windows Pop-up Blocked.wav");
       audio.play().catch((err) => console.error("Error playing sound:", err));
     };
-
+  
     socket.on("newMessage", (newMessage) => {
-      const isMessageSentFromSelectedUser =
+      const { selectedUser } = get();
+      const isMessageSentFromSelectedUser = 
         newMessage.senderId === selectedUser?._id;
-
+  
       set((state) => {
         let updatedMessages = state.messages;
         let updatedUnreadCounts = { ...state.unreadCounts };
-
+  
         if (isMessageSentFromSelectedUser) {
-          // Nếu user đang mở chat với người gửi, thêm tin nhắn vào danh sách
+          // If user is currently chatting with sender, add message to list
           updatedMessages = [...state.messages, newMessage];
+          
+          // Mark as read immediately
+          axiosInstance.put("/messages/mark-read", { 
+            senderId: newMessage.senderId 
+          }).catch(err => console.error("Error marking as read:", err));
         } else {
-          // Nếu user KHÔNG mở chat với người gửi, tăng số tin nhắn chưa đọc
+          // If user is NOT chatting with sender, increase unread count
           updatedUnreadCounts[newMessage.senderId] =
             (updatedUnreadCounts[newMessage.senderId] || 0) + 1;
           playNotificationSound();
         }
-
+  
         return {
           messages: updatedMessages,
           unreadCounts: updatedUnreadCounts,
